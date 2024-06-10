@@ -1,17 +1,7 @@
-variable "cloudwatch_event_ecr_deny_access_rule_description" {
-  type        = string
-  description = "The description of the rule"
-}
-
-variable "cloudwatch_event_ecr_deny_access_rule_pattern" {
-  type        = any
-  description = "Event pattern described a HCL map which will be encoded as JSON with jsonencode function. See full documentation of CloudWatch Events and Event Patterns for details. http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/CloudWatchEventsandEventPatterns.html"
-}
-
 variable "cloudwatch_event_ecr_scan_rule_description" {
   type        = string
   description = "The description of the rule"
-  default     = "Capture ECR Scan Events and Trigger an Action"
+  default     = "Capture ECR scan findings and trigger a Lambda function"
 }
 
 variable "cloudwatch_event_ecr_scan_rule_pattern" {
