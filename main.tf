@@ -77,7 +77,7 @@ resource "aws_lambda_layer_version" "requests_layer" {
 }
 
 module "lambda_ecr_to_datadog_event" {
-  source        = "github.com/schubergphilis/terraform-aws-mcaf-lambda?ref=v1.3.0"
+  source        = "github.com/schubergphilis/terraform-aws-mcaf-lambda?ref=v1.4.0"
   name          = "lambda_ecr_to_datadog_event"
   create_policy = false
   description   = "Send ECR findings to Datadog"

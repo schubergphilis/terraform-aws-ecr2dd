@@ -15,11 +15,10 @@ variable "cloudwatch_event_ecr_scan_rule_pattern" {
 
 variable "repo_config" {
   type = map(object({
-    #create_jira_issue          = optional(bool, false)
+    dd_secret_arn         = optional(string)
     ecr_repo_base         = list(string)
     ecr_repo_tag          = optional(string, null)
     issue_severity_filter = optional(list(string), ["HIGH", "CRITICAL"])
-    dd_secret_arn         = optional(string)
   }))
   default     = {}
   description = "Configure per repository: DD destination and the severity filter"
