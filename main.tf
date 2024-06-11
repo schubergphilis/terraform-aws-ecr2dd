@@ -15,35 +15,27 @@ data "aws_iam_policy_document" "lambda_ecr_to_datadog_event_policy" {
     resources = ["*"]
   }
 
-  #  dynamic "statement" {
-  #    for_each = {
-  #      for component, component_settings in var.component_settings :
-  #      component => component_settings if component_settings.create_jira_issue
-  #    }
-  #
-  #    content {
-  #      actions = [
-  #        "secretsmanager:GetSecretValue"
-  #      ]
-  #
-  #      resources = [statement.value.dd_secret_arn]
-  #    }
-  #  }
-  #
-  #  dynamic "statement" {
-  #    for_each = {
-  #      for component, component_settings in var.component_settings :
-  #      component => component_settings if component_settings.create_jira_issue
-  #    }
-  #
-  #    content {
-  #      actions = [
-  #        "kms:Decrypt"
-  #      ]
-  #
-  #      resources = [var.dd_secret_kms_arn]
-  #    }
-  #  }
+  # Allow Lambda to read the secrets which are configured.
+  dynamic "statement" {
+    for_each = var.repo_config
+
+    content {
+      effect    = "Allow"
+      actions   = ["secretsmanager:GetSecretValue"]
+      resources = distinct([for repo, config in var.repo_config : config.dd_secret_arn])
+    }
+  }
+
+  # Adding KMS Decrypt action if dd_secret_kms_arn is null
+  dynamic "statement" {
+    for_each = var.dd_secret_kms_arn != null ? var.repo_config : {}
+
+    content {
+      effect    = "Allow"
+      actions   = ["kms:Decrypt"]
+      resources = distinct([for repo, config in var.repo_config : config.dd_secret_arn])
+    }
+  }
 }
 
 module "lambda_ecr_to_datadog_event_role" {
