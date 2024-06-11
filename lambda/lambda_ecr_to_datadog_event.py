@@ -3,6 +3,9 @@ import json
 import os
 import requests
 import urllib
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 def get_highest_severity(severity_counts):
     if severity_counts['CRITICAL'] > 0:
@@ -13,6 +16,7 @@ def get_highest_severity(severity_counts):
         return 'MEDIUM'
     return 'LOW'
 
+
 def get_dd_secret(boto3, secretarn):
     service_client = boto3.client('secretsmanager')
     secret = service_client.get_secret_value(SecretId=secretarn)
@@ -20,7 +24,7 @@ def get_dd_secret(boto3, secretarn):
     secret_dict = json.loads(plaintext)
 
     # Run validations against the secret
-    required_fields = ['apikey', 'url']
+    required_fields = ['api_key', 'url']
     for field in required_fields:
         if field not in secret_dict:
             raise KeyError("%s key is missing from secret JSON" % field)
@@ -49,6 +53,36 @@ def get_repo_tag(repo_config):
         return repo['ecr_repo_base']
 
 
+def post_to_datadog(datadog_url, headers, payload):
+    try:
+        response = requests.post(datadog_url, headers=headers, data=json.dumps(payload))
+        if not response.ok:  # This checks if the status code is between 200 and 299
+            error_message = response.content.decode('utf-8')
+            logging.error(f"Error posting to Datadog: {response.status_code}")
+            logging.error(error_message)
+            return {
+                'statusCode': 500,
+                'body': json.dumps({
+                    'message': 'Error forwarding ECR scanning event to Datadog',
+                    'error': error_message
+                })
+            }
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error posting to Datadog: {e}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({
+                'message': 'Error forwarding ECR scanning event to Datadog',
+                'error': str(e)
+            })
+        }
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps('ECR scanning event forwarded to Datadog successfully')
+    }
+
+
 def lambda_handler(event, context):
     print("Received event: " + json.dumps(event, indent=2))
     print("Raw event: ")
@@ -61,7 +95,7 @@ def lambda_handler(event, context):
     dd_secret_arn = repo_config['dd_secret_arn']
     dd_secret_data = get_dd_secret(boto3, dd_secret_arn)
 
-    datadog_api_key = dd_secret_data['apikey']
+    datadog_api_key = dd_secret_data['api_key']
     datadog_url = dd_secret_data['url']
 
     headers = {
@@ -114,18 +148,4 @@ def lambda_handler(event, context):
 
     print(json.dumps(payload))
     
-    response = requests.post(datadog_url, headers=headers, data=json.dumps(payload))
-    
-    if response.status_code != 200:
-        print("Error posting to Datadog: " + str(response.status_code))
-        print(response.content)
-    
-        return {
-            'statusCode': 500,
-            'body': json.dumps('Error forwarding ECR scanning event to Datadog')
-        }
-    else:
-        return {
-            'statusCode': 200,
-            'body': json.dumps('ECR scanning event forwarded to Datadog successfully')
-        }
+    return post_to_datadog(datadog_url, headers=headers, payload=payload)
