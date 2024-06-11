@@ -1,5 +1,6 @@
 import boto3
 import json
+import os
 import requests
 import urllib
 
@@ -27,23 +28,25 @@ def get_dd_secret(boto3, secretarn):
     return secret_dict
 
 
-def get_repo_name(repo_arn):
-    return repo_arn.split("repository/")[1]
+def get_repo_config(config, repo_arn):
+    # Function to extract repo name from repo_arn
+    def get_repo_name(repo_arn):
+        return repo_arn.split("repository/")[1]
 
+    # Get the config that matches the repo_arn
+    for repo, r_config in config.items():
+        if r_config['ecr_repo_base'] in get_repo_name(repo_arn):
+            return config[repo]
 
-def get_repo_config(repo_arn):
-  config = json.loads(os.environ['REPO_CONFIG'])
-  # get the config that matches the repo_arn
-  for repo in config:
-      if repo['ecr_base_name'] in get_repo_name(repo_arn):
-        return config[repo]
+    return None
 
 
 def get_repo_tag(repo_config):
+    # Check if the repo has a tag defined, if not, use the base
     if repo_config['ecr_repo_tag']:
         return repo_config['ecr_repo_tag']
     else:
-        return repo['ecr_base_name']
+        return repo['ecr_repo_base']
 
 
 def lambda_handler(event, context):
@@ -52,7 +55,8 @@ def lambda_handler(event, context):
     print(event)
     print("End raw event")
 
-    repo_config = get_repo_config(event['detail']['repository-name'])
+    repo_config_dict = json.loads(os.environ['REPO_CONFIG'])
+    repo_config = get_repo_config(repo_config_dict, event['detail']['repository-name'])
 
     dd_secret_arn = repo_config['dd_secret_arn']
     dd_secret_data = get_dd_secret(boto3, dd_secret_arn)
@@ -125,5 +129,3 @@ def lambda_handler(event, context):
             'statusCode': 200,
             'body': json.dumps('ECR scanning event forwarded to Datadog successfully')
         }
-
-

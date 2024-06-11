@@ -16,7 +16,7 @@ variable "cloudwatch_event_ecr_scan_rule_pattern" {
 variable "repo_config" {
   type = map(object({
     dd_secret_arn         = optional(string)
-    ecr_repo_base         = list(string)
+    ecr_repo_base         = string
     ecr_repo_tag          = optional(string, null)
     issue_severity_filter = optional(list(string), ["HIGH", "CRITICAL"])
   }))
