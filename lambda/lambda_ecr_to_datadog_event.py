@@ -153,7 +153,7 @@ def lambda_handler(event, context):
     }
 
     # Only send to Datadog if the highest severity finding is in the filter list
-    if get_highest_severity(get_highest_severity(event['detail']['finding-severity-counts'] in repo_config['issue_severity_filter']:
+    if get_highest_severity(event['detail']['finding-severity-counts']) in repo_config['issue_severity_filter']:
         logger.debug(f"Payload to be sent to Datadog: {json.dumps(payload, indent=2)}")
         return post_to_datadog(datadog_url, headers=headers, payload=payload)
     else:
