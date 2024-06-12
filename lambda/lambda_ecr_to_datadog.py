@@ -1,9 +1,9 @@
 import boto3
 import json
+import logging
 import os
 import requests
 import urllib
-import logging
 
 # Set up logging
 logger = logging.getLogger()
@@ -38,10 +38,10 @@ def get_repo_config(config, repo_arn):
         return repo_arn.split("repository/")[1]
 
     logger.info(f"Extracting repository configuration for ARN: {repo_arn}")
-    for repo, r_config in config.items():
+    for r_config in config:
         if r_config['ecr_repo_base'] in get_repo_name(repo_arn):
-            logger.info(f"Matched repository configuration: {repo}")
-            return config[repo]
+            logger.info(f"Matched repository configuration: {r_config['ecr_repo_base']}")
+            return r_config
 
     logger.warning(f"No repository configuration found for ARN: {repo_arn}")
     return None
@@ -102,8 +102,8 @@ def lambda_handler(event, context):
     logger.info("Received event")
     logger.debug(f"Event details: {json.dumps(event, indent=2)}")
 
-    repo_config_dict = json.loads(os.environ['REPO_CONFIG'])
-    repo_config = get_repo_config(repo_config_dict, event['detail']['repository-name'])
+    repo_config_list = json.loads(os.environ['REPO_CONFIG'])
+    repo_config = get_repo_config(repo_config_list, event['detail']['repository-name'])
 
     if repo_config is None:
         logger.error("No matching repository configuration found")

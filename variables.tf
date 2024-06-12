@@ -13,21 +13,21 @@ variable "cloudwatch_event_ecr_scan_rule_pattern" {
   description = "Event pattern described a HCL map which will be encoded as JSON with jsonencode function. See full documentation of CloudWatch Events and Event Patterns for details. http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/CloudWatchEventsandEventPatterns.html"
 }
 
+variable "dd_secret_kms_arn" {
+  type        = string
+  description = "The KMS key to encrypt the secret"
+  default     = null
+}
+
 variable "repo_config" {
-  type = map(object({
+  type = list(object({
     dd_secret_arn         = optional(string)
     ecr_repo_base         = string
     ecr_repo_tag          = optional(string, null)
     issue_severity_filter = optional(list(string), ["HIGH", "CRITICAL"])
   }))
-  default     = {}
-  description = "Configure per repository: DD destination and the severity filter"
-}
-
-variable "dd_secret_kms_arn" {
-  type        = string
-  description = "The KMS key to encrypt the secret"
-  default     = null
+  default     = []
+  description = "Configure per repository: DD destination and the severity filter, first match on ecr_repo_base will be used"
 }
 
 variable "subnet_ids" {

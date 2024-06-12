@@ -30,17 +30,17 @@ module "ecr-to-datadog" {
 
   subnet_ids = data.terraform_remote_state.vpc.outputs.shared_vpc.subnets.private.ids
 
-  repo_config = {
-    example_test2 = {
+  repo_config = [
+    {
       dd_secret_arn = aws_secretsmanager_secret.ecr_scan_dd_secret.arn
       ecr_repo_base = "example/test2"
       ecr_repo_tag  = "exampletest"
-    }
-    example_test = {
+    },
+    {
       dd_secret_arn = aws_secretsmanager_secret.ecr_scan_dd_secret.arn
       ecr_repo_base = "example"
     }
-  }
+  ]
 }
 ```
 
