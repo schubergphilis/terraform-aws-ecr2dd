@@ -3,7 +3,10 @@
 //  2- Provisions a Lambda that creates a finding in AWS Security Hub/Jira
 // --------------------------------------------------------------------------------------------------
 
-data "aws_region" "current" {}
+locals {
+  unique_secret_arns = distinct([for repo, config in var.repo_config : config.dd_secret_arn])
+}
+
 
 data "aws_iam_policy_document" "lambda_ecr_to_datadog_event_policy" {
   statement {
@@ -16,24 +19,20 @@ data "aws_iam_policy_document" "lambda_ecr_to_datadog_event_policy" {
   }
 
   # Allow Lambda to read the secrets which are configured.
-  dynamic "statement" {
-    for_each = var.repo_config
+  statement {
+    actions = ["secretsmanager:GetSecretValue"]
 
-    content {
-      effect    = "Allow"
-      actions   = ["secretsmanager:GetSecretValue"]
-      resources = distinct([for repo, config in var.repo_config : config.dd_secret_arn])
-    }
+    resources = local.unique_secret_arns
   }
 
   # Adding KMS Decrypt action if dd_secret_kms_arn is null
   dynamic "statement" {
-    for_each = var.dd_secret_kms_arn != null ? var.repo_config : {}
+    for_each = var.dd_secret_kms_arn != null ? { create = true } : {}
 
     content {
       effect    = "Allow"
       actions   = ["kms:Decrypt"]
-      resources = distinct([for repo, config in var.repo_config : config.dd_secret_arn])
+      resources = local.unique_secret_arns
     }
   }
 }
