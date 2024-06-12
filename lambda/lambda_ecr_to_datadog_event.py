@@ -157,7 +157,7 @@ def lambda_handler(event, context):
         logger.debug(f"Payload to be sent to Datadog: {json.dumps(payload, indent=2)}")
         return post_to_datadog(datadog_url, headers=headers, payload=payload)
     else:
-        logger.debug("Severity filter not met, skipping Datadog event")
+        logger.info("Severity filter not met, skipping Datadog event")
         return {
             'statusCode': 200,
             'body': json.dumps('Severity filter not met, skipping Datadog event')
