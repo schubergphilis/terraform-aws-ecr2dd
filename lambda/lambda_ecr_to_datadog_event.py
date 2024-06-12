@@ -5,7 +5,9 @@ import requests
 import urllib
 import logging
 
-logging.basicConfig(level=logging.INFO)
+# Set up logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 def get_highest_severity(severity_counts):
     if severity_counts['CRITICAL'] > 0:
@@ -16,50 +18,48 @@ def get_highest_severity(severity_counts):
         return 'MEDIUM'
     return 'LOW'
 
-
 def get_dd_secret(boto3, secretarn):
+    logger.info(f"Fetching Datadog secret from Secrets Manager: {secretarn}")
     service_client = boto3.client('secretsmanager')
     secret = service_client.get_secret_value(SecretId=secretarn)
     plaintext = secret['SecretString']
     secret_dict = json.loads(plaintext)
 
-    # Run validations against the secret
     required_fields = ['api_key', 'url']
     for field in required_fields:
         if field not in secret_dict:
-            raise KeyError("%s key is missing from secret JSON" % field)
+            logger.error(f"Missing required field {field} in secret JSON")
+            raise KeyError(f"{field} key is missing from secret JSON")
 
     return secret_dict
 
-
 def get_repo_config(config, repo_arn):
-    # Function to extract repo name from repo_arn
     def get_repo_name(repo_arn):
         return repo_arn.split("repository/")[1]
 
-    # Get the config that matches the repo_arn
+    logger.info(f"Extracting repository configuration for ARN: {repo_arn}")
     for repo, r_config in config.items():
         if r_config['ecr_repo_base'] in get_repo_name(repo_arn):
+            logger.info(f"Matched repository configuration: {repo}")
             return config[repo]
 
+    logger.warning(f"No repository configuration found for ARN: {repo_arn}")
     return None
 
-
 def get_repo_tag(repo_config):
-    # Check if the repo has a tag defined, if not, use the base
     if repo_config['ecr_repo_tag']:
         return repo_config['ecr_repo_tag']
     else:
-        return repo['ecr_repo_base']
-
+        return repo_config['ecr_repo_base']
 
 def post_to_datadog(datadog_url, headers, payload):
     try:
+        logger.info("Posting payload to Datadog")
         response = requests.post(datadog_url, headers=headers, data=json.dumps(payload))
-        if not response.ok:  # This checks if the status code is between 200 and 299
+        if not response.ok:
             error_message = response.content.decode('utf-8')
-            logging.error(f"Error posting to Datadog: {response.status_code}")
-            logging.error(error_message)
+            logger.error(f"Error posting to Datadog: {response.status_code}")
+            logger.error(error_message)
             return {
                 'statusCode': 500,
                 'body': json.dumps({
@@ -68,7 +68,7 @@ def post_to_datadog(datadog_url, headers, payload):
                 })
             }
     except requests.exceptions.RequestException as e:
-        logging.error(f"Error posting to Datadog: {e}")
+        logger.error(f"Error posting to Datadog: {e}")
         return {
             'statusCode': 500,
             'body': json.dumps({
@@ -77,20 +77,25 @@ def post_to_datadog(datadog_url, headers, payload):
             })
         }
 
+    logger.info("ECR scanning event forwarded to Datadog successfully")
     return {
         'statusCode': 200,
         'body': json.dumps('ECR scanning event forwarded to Datadog successfully')
     }
 
-
 def lambda_handler(event, context):
-    print("Received event: " + json.dumps(event, indent=2))
-    print("Raw event: ")
-    print(event)
-    print("End raw event")
+    logger.info("Received event")
+    logger.debug(f"Event details: {json.dumps(event, indent=2)}")
 
     repo_config_dict = json.loads(os.environ['REPO_CONFIG'])
     repo_config = get_repo_config(repo_config_dict, event['detail']['repository-name'])
+
+    if repo_config is None:
+        logger.error("No matching repository configuration found")
+        return {
+            'statusCode': 500,
+            'body': json.dumps('No matching repository configuration found')
+        }
 
     dd_secret_arn = repo_config['dd_secret_arn']
     dd_secret_data = get_dd_secret(boto3, dd_secret_arn)
@@ -102,11 +107,11 @@ def lambda_handler(event, context):
         'Content-Type': 'application/json',
         'DD-API-KEY': datadog_api_key
     }
-    
+
     region = event['region']
     url_encoded_repo_sha = urllib.parse.quote_plus(event['detail']['repository-name'] + "/" + event['detail']['image-digest'])
-    scan_url="https://" + region + ".console.aws.amazon.com/inspector/v2/home?region=" + region + "#/findings/container-image/" + url_encoded_repo_sha
-    
+    scan_url = f"https://{region}.console.aws.amazon.com/inspector/v2/home?region={region}#/findings/container-image/{url_encoded_repo_sha}"
+
     payload_text = '''
     %%% \n
     Vulnerability found in: `{repo_arn}/{image_digest}`.
@@ -131,12 +136,13 @@ def lambda_handler(event, context):
         repo_arn=event['detail']['repository-name'],
         scan_url=scan_url
     )
-    
+
     payload = {
         "title": "ECR Scan finding in " + event['detail']['repository-name'].split("repository/")[1],
         "text": payload_text,
         "aggregation_key": event['detail']['repository-name'] + "/" + event['detail']['image-digest'],
         "source_type_name": "amazon inspector",
+        "alert_type": "error",
         "tags": [
             "env:sandbox",
             "image_sha:" + event['detail']['image-digest'],
@@ -146,6 +152,15 @@ def lambda_handler(event, context):
         ]
     }
 
-    print(json.dumps(payload))
-    
-    return post_to_datadog(datadog_url, headers=headers, payload=payload)
+    # Only send to Datadog if the highest severity finding is in the filter list
+    if get_highest_severity(get_highest_severity(event['detail']['finding-severity-counts'] in repo_config['issue_severity_filter']:
+        logger.debug(f"Payload to be sent to Datadog: {json.dumps(payload, indent=2)}")
+        return post_to_datadog(datadog_url, headers=headers, payload=payload)
+    else:
+        logger.debug("Severity filter not met, skipping Datadog event")
+        return {
+            'statusCode': 200,
+            'body': json.dumps('Severity filter not met, skipping Datadog event')
+        }
+
+
