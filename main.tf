@@ -12,6 +12,14 @@ data "aws_iam_policy_document" "lambda_ecr_to_datadog_policy" {
     resources = ["*"]
   }
 
+  // Allow Lambda to list tags on itself
+  statement {
+    actions = [
+      "lambda:ListTags"
+    ]
+    resources = [module.lambda_ecr_to_datadog.arn]
+  }
+
   // Allow Lambda to read the secrets which are configured.
   statement {
     actions   = ["secretsmanager:GetSecretValue"]

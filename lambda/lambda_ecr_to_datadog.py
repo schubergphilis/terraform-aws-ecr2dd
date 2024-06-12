@@ -83,6 +83,21 @@ def post_to_datadog(datadog_url, headers, payload):
         'body': json.dumps('ECR scanning event forwarded to Datadog successfully')
     }
 
+def get_env_from_tags(context):
+    try:
+        logger.info("Fetching environment from Lambda tags")
+        client = boto3.client('lambda')
+        response = client.list_tags(Resource=context.invoked_function_arn)
+        tags = response.get('Tags', {})
+        if 'Env' not in tags:
+            logger.error("No 'Env' tag found on Lambda function")
+            return 'unknown'
+        else:
+            return tags['Env']
+    except Exception as e:
+        logger.error(f"Error fetching environment from Lambda tags: {e}")
+        return 'unknown'
+
 def lambda_handler(event, context):
     logger.info("Received event")
     logger.debug(f"Event details: {json.dumps(event, indent=2)}")
@@ -144,10 +159,11 @@ def lambda_handler(event, context):
         "source_type_name": "amazon inspector",
         "alert_type": "error",
         "tags": [
-            "env:sandbox",
+            "env:" + get_env_from_tags(context),
             "image_sha:" + event['detail']['image-digest'],
             "repo_arn:" + event['detail']['repository-name'],
             "repo_base:" + get_repo_tag(repo_config),
+            "repo_name:" + event['detail']['repository-name'].split("repository/")[1],
             "severity:" + get_highest_severity(event['detail']['finding-severity-counts'])
         ]
     }
