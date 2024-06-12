@@ -116,12 +116,12 @@ def lambda_handler(event, context):
     %%% \n
     Vulnerability found in: `{repo_arn}/{image_digest}`.
     [Scan results]({scan_url})
-    
+
     ```
     Repository:     {repo_arn}
     Image SHA:      {image_digest}
     Image tags:     [{image_tags_list}]
-    
+
     Criticals:      {findings_crit}
     Highs:          {findings_high}
     Mediums:        {findings_med}
@@ -162,5 +162,3 @@ def lambda_handler(event, context):
             'statusCode': 200,
             'body': json.dumps('Severity filter not met, skipping Datadog event')
         }
-
-
